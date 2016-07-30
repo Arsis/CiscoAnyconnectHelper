@@ -1,3 +1,3 @@
 # CiscoAnyconnectHelper
 
-Simple script for connect to Ciscon Anyconnect vpn servers
+Simple script for connecting to Ciscon Anyconnect vpn servers
