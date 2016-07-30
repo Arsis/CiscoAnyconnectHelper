@@ -1,0 +1,122 @@
+#!/usr/bin/env ruby
+require 'colorize'
+
+class Connector
+    attr_reader :name, :password, :host
+    def initialize
+      @name = ""
+      @password = ""
+      @group = ""
+      @host = ""
+    end
+
+    def connect
+      if isConnected == false
+        task = AnimatedTask.new() do
+          (%x(printf "#{@group}\n#{@name}\n#{@password}\ny" | /opt/cisco/anyconnect/bin/vpn -s connect #{@host}))
+        end
+        task.title = "Connecting"
+        result = task.start()
+        state = stateFromResult(result)
+        if isConnectedWithResult(state) == false
+          puts errorFromResult(result).red
+        else
+          puts (state+" to " + @host).green
+        end
+      else
+        puts "Already connected".green
+      end
+    end
+
+    def disconnect
+      if isConnected == true
+        task = AnimatedTask.new() do
+          (%x(/opt/cisco/anyconnect/bin/vpn disconnect))
+        end
+        task.title = "Disconnecting"
+        result = task.start()
+        state = stateFromResult(result)
+        puts state.yellow
+      else
+        puts "Not connected yet".red
+      end
+
+    end
+
+    def state
+     if isConnected == true
+       puts("Current state: connected".green)
+     else
+       puts("Current state: disconnected".yellow)
+     end
+    end
+
+    private
+    def isConnected
+      task = AnimatedTask.new() do
+        %x(/opt/cisco/anyconnect/bin/vpn state)
+      end
+      task.title = "Checking state"
+      result = task.start()
+      return isConnectedWithResult(stateFromResult(result))
+    end
+
+    def isConnectedWithResult(result)
+      result.eql?"Connected"
+    end
+
+    def stateFromResult(result)
+      valueForKeyFromResult(">> state: ",result)
+    end
+
+    def errorFromResult(result)
+      valueForKeyFromResult(">> error: ",result)
+    end
+
+    def valueForKeyFromResult(key,result)
+      value = nil
+      result.lines.each { |line|
+        if line.include?key
+          value = line[13 ..line.length - 2]
+        end
+      }
+      value
+    end
+end
+
+class AnimatedTask
+  attr_accessor :title
+  def initialize(&block)
+    @task = block
+    @title = ""
+  end
+
+  def start
+    finished = false
+    result = nil
+    Thread.new do
+      result = @task.call()
+      Thread.exclusive do
+        finished = true
+      end
+    end
+    printf(@title)
+    while finished == false do
+      printf(".")
+      sleep(0.3)
+    end
+    puts
+    return result
+  end
+end
+
+connector = Connector.new()
+if ARGV[0] == "c"
+  connector.connect()
+elsif ARGV[0] == "d"
+  connector.disconnect()
+elsif ARGV[0] == "st"
+  connector.state()
+else
+  puts("unknown command, use 'c' to connect, 'd' to disconnect or 'st' to check state")
+end
