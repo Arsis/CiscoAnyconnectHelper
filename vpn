@@ -87,18 +87,17 @@ end
 class AnimatedTask
   attr_accessor :title
   def initialize(&block)
+  	@finished = false
     @task = block
     @title = ""
+    @mutex = Mutex.new
   end
 
   def start
-    finished = false
     result = nil
     Thread.new do
       result = @task.call()
-      Thread.exclusive do
-        finished = true
-      end
+      set_finished
     end
     printf(@title)
     while finished == false do
@@ -107,6 +106,20 @@ class AnimatedTask
     end
     puts
     return result
+  end
+  
+  def finished
+  	result = false
+  	@mutex.synchronize do
+  		result = @finished
+  	end
+  	result
+  end
+  
+  def set_finished
+  	@mutex.synchronize do
+  		@finished = true
+  	end
   end
 end
 
